@@ -62,6 +62,7 @@ intents.members = True
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
+bot.remove_command("help")
 
 
 def get_embed_color() -> discord.Color:
@@ -379,6 +380,7 @@ class RegisterView(discord.ui.View):
         super().__init__(timeout=None)
         self.add_item(RegisterButton())
 
+
 class ApproveButton(discord.ui.Button):
     def __init__(self, target_user_id: int):
         super().__init__(
@@ -503,6 +505,7 @@ class ApproveButton(discord.ui.Button):
                 ephemeral=True
             )
 
+
 class RejectButton(discord.ui.Button):
     def __init__(self, target_user_id: int):
         super().__init__(
@@ -574,7 +577,7 @@ class ApprovalView(discord.ui.View):
 @bot.event
 async def on_ready():
     bot.add_view(RegisterView())
-    print(f"Bot conectado como {bot.user}")
+    print(f"Bot conectado como {bot.user} | ID: {bot.user.id}")
 
 
 @bot.command(name="painelregistro")
@@ -618,6 +621,7 @@ async def listar_aceitos(ctx):
         )
 
     embed.description = "\n".join(linhas)
+    embed.set_footer(text=f"Mostrando os últimos {min(len(approved_members), 15)} aprovados")
     await ctx.send(embed=embed)
 
 
@@ -630,6 +634,153 @@ async def limpar_aceitos(ctx):
     storage["approved_members"] = []
     persist_storage()
     await ctx.send("Lista de membros aceitos limpa com sucesso.")
+
+
+@bot.command(name="rankingrecrutador")
+async def ranking_recrutador(ctx):
+    if not isinstance(ctx.author, discord.Member) or not has_approver_role(ctx.author):
+        await ctx.send("Você não tem permissão para ver o ranking.")
+        return
+
+    approved_members = get_approved_members()
+
+    if not approved_members:
+        await ctx.send("Ainda não há membros aprovados para montar o ranking.")
+        return
+
+    ranking = {}
+
+    for member_data in approved_members:
+        recruiter = member_data.get("recruiter_name", "Desconhecido").strip()
+        if not recruiter:
+            recruiter = "Desconhecido"
+
+        recruiter_key = recruiter.lower()
+
+        if recruiter_key not in ranking:
+            ranking[recruiter_key] = {
+                "name": recruiter,
+                "count": 0
+            }
+
+        ranking[recruiter_key]["count"] += 1
+
+    ranking_ordenado = sorted(
+        ranking.values(),
+        key=lambda x: x["count"],
+        reverse=True
+    )
+
+    embed = discord.Embed(
+        title="Ranking de recrutadores",
+        color=get_embed_color()
+    )
+
+    linhas = []
+    for i, item in enumerate(ranking_ordenado[:15], start=1):
+        linhas.append(f"**{i}.** {item['name']} — {item['count']} aprovado(s)")
+
+    embed.description = "\n".join(linhas)
+    embed.set_footer(text=f"Total de recrutadores no ranking: {len(ranking_ordenado)}")
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="recrutadorinfo")
+async def recrutador_info(ctx, *, nome: str):
+    if not isinstance(ctx.author, discord.Member) or not has_approver_role(ctx.author):
+        await ctx.send("Você não tem permissão para consultar recrutadores.")
+        return
+
+    approved_members = get_approved_members()
+
+    if not approved_members:
+        await ctx.send("Ainda não há membros aprovados registrados.")
+        return
+
+    nome_busca = nome.strip().lower()
+    encontrados = [
+        member_data for member_data in approved_members
+        if member_data.get("recruiter_name", "").strip().lower() == nome_busca
+    ]
+
+    if not encontrados:
+        await ctx.send(f"Nenhum aprovado foi encontrado para o recrutador **{nome}**.")
+        return
+
+    embed = discord.Embed(
+        title=f"Informações do recrutador: {nome}",
+        color=get_embed_color()
+    )
+
+    linhas = []
+    for i, member_data in enumerate(encontrados[-15:], start=1):
+        linhas.append(
+            f"**{i}.** {member_data['character_name']} | {member_data['character_id']} "
+            f"- {member_data['requested_role_name']} "
+            f"({member_data['approved_at']})"
+        )
+
+    embed.add_field(
+        name="Total de aprovados",
+        value=str(len(encontrados)),
+        inline=False
+    )
+    embed.add_field(
+        name="Últimos aprovados",
+        value="\n".join(linhas),
+        inline=False
+    )
+
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="ping")
+async def ping(ctx):
+    await ctx.send("pong")
+
+
+@bot.command(name="help")
+async def help_command(ctx):
+    embed = discord.Embed(
+        title="📘 Central de Comandos",
+        description="Aqui estão todos os comandos disponíveis no sistema:",
+        color=get_embed_color()
+    )
+
+    embed.add_field(
+        name="📝 Registro",
+        value=(
+            "`!painelregistro` → Abre o painel de registro"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="👑 Staff",
+        value=(
+            "`!aceitos` → Lista membros aprovados\n"
+            "`!aceitoslimpar` → Limpa lista de aprovados\n"
+            "`!rankingrecrutador` → Ranking de recrutadores\n"
+            "`!recrutadorinfo <nome>` → Informações de um recrutador"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="⚙️ Utilidades",
+        value=(
+            "`!ping` → Testa se o bot está online\n"
+            "`!help` → Mostra esta central de comandos"
+        ),
+        inline=False
+    )
+
+    embed.set_footer(
+        text=f"Solicitado por {ctx.author}",
+        icon_url=ctx.author.display_avatar.url
+    )
+
+    await ctx.send(embed=embed)
 
 
 @bot.event
