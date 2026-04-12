@@ -343,6 +343,19 @@ class RoleSelect(discord.ui.Select):
             view=ApprovalView(target_user_id=interaction.user.id)
         )
 
+        await send_log_embed(
+            guild,
+            "📨 Nova solicitação de registro",
+            (
+                f"**Usuário:** {interaction.user.mention}\n"
+                f"**Nome RP:** {self.character_name}\n"
+                f"**ID:** {self.character_id}\n"
+                f"**Recrutador:** {self.recruiter_name}\n"
+                f"**Cargo solicitado:** {selected_role_name}"
+            ),
+            discord.Color.blurple()
+        )
+
         await interaction.response.edit_message(
             content="Sua solicitação foi enviada para aprovação.",
             view=None
@@ -478,6 +491,20 @@ class ApproveButton(discord.ui.Button):
             pending.pop(str(self.target_user_id), None)
             persist_storage()
 
+            await send_log_embed(
+                guild,
+                "✅ Solicitação aprovada",
+                (
+                    f"**Membro:** {member.mention}\n"
+                    f"**Nome RP:** {request['character_name']}\n"
+                    f"**ID:** {request['character_id']}\n"
+                    f"**Cargo recebido:** {requested_role.name}\n"
+                    f"**Recrutador:** {request['recruiter_name']}\n"
+                    f"**Aprovado por:** {interaction.user.mention}"
+                ),
+                discord.Color.green()
+            )
+
             try:
                 await member.send(
                     f"Seu registro foi aprovado em **{guild.name}**.\n"
@@ -506,7 +533,109 @@ class ApproveButton(discord.ui.Button):
             )
 
 
+class RejectReasonModal(discord.ui.Modal, title="Motivo da recusa"):
+    reason = discord.ui.TextInput(
+        label="Motivo",
+        placeholder="Explique o motivo da recusa",
+        style=discord.TextStyle.paragraph,
+        max_length=500,
+        required=True
+    )
+
+    def __init__(self, target_user_id: int):
+        super().__init__()
+        self.target_user_id = target_user_id
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        try:
+            if not isinstance(interaction.user, discord.Member):
+                await interaction.response.send_message("Permissão inválida.", ephemeral=True)
+                return
+
+            if not has_approver_role(interaction.user):
+                await interaction.response.send_message(
+                    "Você não tem permissão para recusar solicitações.",
+                    ephemeral=True
+                )
+                return
+
+            guild = interaction.guild
+            pending = get_pending_requests()
+            request = pending.get(str(self.target_user_id))
+
+            if request is None:
+                await interaction.response.send_message(
+                    "Essa solicitação já foi processada ou não existe mais.",
+                    ephemeral=True
+                )
+                return
+
+            member = guild.get_member(self.target_user_id) if guild else None
+            reason_text = str(self.reason).strip()
+
+            pending.pop(str(self.target_user_id), None)
+            persist_storage()
+
+            if member and guild:
+                try:
+                    await member.send(
+                        f"Sua solicitação de registro em **{guild.name}** foi recusada.\n\n"
+                        f"**Motivo:** {reason_text}"
+                    )
+                except discord.HTTPException:
+                    pass
+
+            if guild:
+                await send_log_embed(
+                    guild,
+                    "❌ Solicitação recusada",
+                    (
+                        f"**Membro:** <@{self.target_user_id}>\n"
+                        f"**Nome RP:** {request['character_name']}\n"
+                        f"**ID:** {request['character_id']}\n"
+                        f"**Cargo solicitado:** {request['requested_role_name']}\n"
+                        f"**Recrutador:** {request['recruiter_name']}\n"
+                        f"**Recusado por:** {interaction.user.mention}\n"
+                        f"**Motivo:** {reason_text}"
+                    ),
+                    discord.Color.red()
+                )
+
+            await interaction.response.edit_message(
+                content=f"Solicitação recusada por {interaction.user.mention}.\nMotivo: {reason_text}",
+                embed=None,
+                view=None
+            )
+
+        except Exception as e:
+            await interaction.response.send_message(
+                f"Erro ao recusar: {e}",
+                ephemeral=True
+            )
+
+
 class RejectButton(discord.ui.Button):
+    def __init__(self, target_user_id: int):
+        super().__init__(
+            label="Recusar",
+            style=discord.ButtonStyle.danger,
+            custom_id=f"reject_request_{target_user_id}"
+        )
+        self.target_user_id = target_user_id
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("Permissão inválida.", ephemeral=True)
+            return
+
+        if not has_approver_role(interaction.user):
+            await interaction.response.send_message(
+                "Você não tem permissão para recusar solicitações.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.send_modal(RejectReasonModal(self.target_user_id))
     def __init__(self, target_user_id: int):
         super().__init__(
             label="Recusar",
@@ -756,14 +885,15 @@ async def help_command(ctx):
     )
 
     embed.add_field(
-        name="👑 Staff",
-        value=(
-            "`!aceitos` → Lista membros aprovados\n"
-            "`!aceitoslimpar` → Limpa lista de aprovados\n"
-            "`!rankingrecrutador` → Ranking de recrutadores\n"
-            "`!recrutadorinfo <nome>` → Informações de um recrutador"
-        ),
-        inline=False
+    name="👑 Staff",
+    value=(
+        "`!aceitos` → Lista membros aprovados\n"
+        "`!aceitoslimpar` → Limpa lista de aprovados\n"
+        "`!rankingrecrutador` → Ranking de recrutadores\n"
+        "`!recrutadorinfo <nome>` → Informações de um recrutador\n"
+        "`Recusar` → Agora pede motivo da recusa"
+    ),
+    inline=False
     )
 
     embed.add_field(
@@ -786,6 +916,12 @@ async def help_command(ctx):
 @bot.event
 async def on_member_join(member: discord.Member):
     print(f"ENTROU: {member.name}")
+        await send_log_embed(
+        member.guild,
+        "👋 Novo membro entrou",
+        f"**Membro:** {member.mention}\n**Nome:** {member.name}",
+        discord.Color.gold()
+    )
 
     welcome_channel = member.guild.get_channel(config.get("welcome_channel_id"))
 
@@ -809,6 +945,38 @@ async def on_member_join(member: discord.Member):
     except Exception as e:
         print(f"ERRO NO CARD: {e}")
 
+def get_log_channel(guild: discord.Guild | None) -> discord.TextChannel | None:
+    if guild is None:
+        return None
 
-token = os.getenv("DISCORD_TOKEN", config["token"])
-bot.run(token)
+    log_channel_id = config.get("log_channel_id")
+    if not log_channel_id:
+        return None
+
+    channel = guild.get_channel(log_channel_id)
+    if isinstance(channel, discord.TextChannel):
+        return channel
+
+    return None
+
+
+async def send_log_embed(guild: discord.Guild | None, title: str, description: str, color: discord.Color | None = None):
+    log_channel = get_log_channel(guild)
+    if log_channel is None:
+        return
+
+    embed = discord.Embed(
+        title=title,
+        description=description,
+        color=color or get_embed_color(),
+        timestamp=datetime.now()
+    )
+
+    try:
+        await log_channel.send(embed=embed)
+    except discord.HTTPException:
+        pass
+
+
+TOKEN = os.getenv("DISCORD_TOKEN")
+bot.run(TOKEN)
