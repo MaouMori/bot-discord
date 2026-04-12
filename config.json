@@ -1,20 +1,21 @@
 {
-  "token": "SEU_TOKEN_AQUI",
+  "token": "SEU_TOKEN",
   "guild_id": 123456789012345678,
-  "registration_channel_id": 1492749465499734017,
-  "approval_channel_id": 1492749494566260819,
-  "default_role_id": 1492750156167123075,
-  "approver_role_id": 1492749307563212843,
+  "registration_channel_id": 1492773532092862555,
+  "approval_channel_id": 1492788944134209597,
+  "default_role_id": 1485399658258895042,
+  "approver_role_id": [1446473298396577875,1446473298396577876,1446473298396577877],
   "embed_color": 5793266,
+  "welcome_channel_id": 1446473298727800953,
   "requestable_roles": {
-    "Calouro": 1492748672608243752,
-    "Veterano": 1492748743626326126,
-    "Conselheiro": 1492748810290597979,
-    "Convidado": 1492749235383173200,
-    "Reitoria": 1492749271127031849,
-    "welcome_channel_id": 123456789012345678
+    "Calouro": 1446473298383732805,
+    "Veterano": 1446473298396577873,
+    "Conselheiro": 1446473298396577875,
+    "Convidado": 1446473298383732800,
+    "Reitoria": 1446473298396577878
   },
   "roles_without_default": [
-    1492749271127031849
+    1446473298396577878,
+    1446473298383732800
   ]
 }

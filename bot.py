@@ -4,6 +4,10 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 from io import BytesIO
+from datetime import datetime
+
+print(">>> ARQUIVO ATUAL <<<", os.path.abspath(__file__))
+print(">>> TESTE NOVO CARREGADO <<<")
 
 from PIL import Image, ImageDraw, ImageFont
 import discord
@@ -46,7 +50,11 @@ storage = load_json(STORAGE_FILE)
 
 if "pending_requests" not in storage:
     storage["pending_requests"] = {}
-    save_json(STORAGE_FILE, storage)
+
+if "approved_members" not in storage:
+    storage["approved_members"] = []
+
+save_json(STORAGE_FILE, storage)
 
 intents = discord.Intents.default()
 intents.guilds = True
@@ -65,6 +73,13 @@ def get_pending_requests() -> dict[str, Any]:
     if "pending_requests" not in storage:
         storage["pending_requests"] = {}
     return storage["pending_requests"]
+
+
+def get_approved_members() -> list[dict[str, Any]]:
+    global storage
+    if "approved_members" not in storage:
+        storage["approved_members"] = []
+    return storage["approved_members"]
 
 
 def persist_storage() -> None:
@@ -94,31 +109,34 @@ def load_font(size: int):
 
 
 async def create_welcome_card(member: discord.Member) -> BytesIO:
-    width, height = 1100, 420
-    background = Image.new("RGBA", (width, height), (18, 10, 28, 255))
+    width, height = 1200, 500
+    background = Image.new("RGBA", (width, height), (10, 8, 18, 255))
     draw = ImageDraw.Draw(background)
 
-    # fundo com camadas
     draw.rounded_rectangle(
         (20, 20, width - 20, height - 20),
-        radius=35,
-        fill=(32, 18, 52, 255),
-        outline=(130, 82, 255, 255),
+        radius=38,
+        fill=(18, 14, 30, 255),
+        outline=(120, 70, 255, 180),
         width=3
     )
 
     draw.rounded_rectangle(
-        (45, 45, width - 45, height - 45),
-        radius=28,
-        fill=(24, 14, 40, 230)
+        (40, 40, width - 40, height - 40),
+        radius=30,
+        fill=(14, 11, 24, 255)
     )
 
-    # brilhos decorativos
-    draw.ellipse((760, -80, 1100, 240), fill=(110, 60, 200, 80))
-    draw.ellipse((-120, 240, 220, 560), fill=(180, 100, 255, 60))
-    draw.ellipse((840, 260, 1080, 500), fill=(255, 255, 255, 18))
+    draw.ellipse((780, -80, 1180, 280), fill=(90, 45, 180, 70))
+    draw.ellipse((-120, 260, 240, 620), fill=(120, 70, 255, 60))
+    draw.ellipse((900, 320, 1180, 560), fill=(255, 255, 255, 18))
 
-    # avatar
+    draw.rounded_rectangle(
+        (70, 80, 78, 420),
+        radius=8,
+        fill=(140, 90, 255, 255)
+    )
+
     avatar_asset = member.display_avatar.replace(size=256)
     avatar_bytes = BytesIO(await avatar_asset.read())
     avatar = Image.open(avatar_bytes).convert("RGBA").resize((220, 220))
@@ -130,43 +148,58 @@ async def create_welcome_card(member: discord.Member) -> BytesIO:
     avatar_circle = Image.new("RGBA", (220, 220), (0, 0, 0, 0))
     avatar_circle.paste(avatar, (0, 0), mask=mask)
 
-    # aro do avatar
-    draw.ellipse((78, 98, 322, 342), fill=(150, 100, 255, 255))
-    draw.ellipse((88, 108, 312, 332), fill=(28, 16, 46, 255))
-    background.paste(avatar_circle, (90, 110), avatar_circle)
+    draw.ellipse((110, 140, 350, 380), fill=(122, 72, 255, 255))
+    draw.ellipse((120, 150, 340, 370), fill=(24, 18, 38, 255))
+    background.paste(avatar_circle, (120, 150), avatar_circle)
 
-    # textos
-    title_font = load_font(54)
-    name_font = load_font(42)
-    small_font = load_font(24)
+    title_font = load_font(58)
+    name_font = load_font(40)
+    text_font = load_font(24)
+    small_font = load_font(20)
 
-    draw.text((370, 90), "BEM-VINDO(A)", font=title_font, fill=(245, 240, 255, 255))
-    draw.text((372, 150), f"{member.name}", font=name_font, fill=(180, 140, 255, 255))
     draw.text(
-        (370, 225),
+        (410, 115),
+        "BEM-VINDO(A)",
+        font=title_font,
+        fill=(248, 244, 255, 255)
+    )
+
+    draw.text(
+        (412, 185),
+        f"{member.name}",
+        font=name_font,
+        fill=(170, 130, 255, 255)
+    )
+
+    draw.text(
+        (410, 250),
         f"ao servidor {member.guild.name}",
-        font=small_font,
-        fill=(230, 220, 255, 220)
-    )
-    draw.text(
-        (370, 268),
-        "Faça seu registro para receber seu cargo.",
-        font=small_font,
-        fill=(255, 255, 255, 210)
+        font=text_font,
+        fill=(220, 220, 240, 235)
     )
 
-    # faixa inferior
-    draw.rounded_rectangle(
-        (360, 315, 980, 365),
-        radius=18,
-        fill=(115, 65, 235, 230)
-    )
     draw.text(
-        (385, 327),
+        (410, 292),
+        "Faça seu registro para receber seu cargo.",
+        font=text_font,
+        fill=(245, 245, 255, 210)
+    )
+
+    draw.rounded_rectangle(
+        (405, 355, 1035, 405),
+        radius=16,
+        fill=(110, 60, 235, 230)
+    )
+
+    draw.text(
+        (430, 368),
         "Clique no botão de registro no canal indicado pela staff",
         font=small_font,
         fill=(255, 255, 255, 255)
     )
+
+    draw.arc((1020, 55, 1130, 165), start=0, end=270, fill=(140, 90, 255, 180), width=3)
+    draw.arc((980, 315, 1120, 455), start=180, end=20, fill=(140, 90, 255, 120), width=3)
 
     output = BytesIO()
     background.save(output, format="PNG")
@@ -429,6 +462,18 @@ class ApproveButton(discord.ui.Button):
             )
             return
 
+        approved_members = get_approved_members()
+        approved_members.append({
+            "user_id": member.id,
+            "discord_name": str(member),
+            "character_name": request["character_name"],
+            "character_id": request["character_id"],
+            "recruiter_name": request["recruiter_name"],
+            "requested_role_name": request["requested_role_name"],
+            "approved_by": str(interaction.user),
+            "approved_at": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        })
+
         pending.pop(str(self.target_user_id), None)
         persist_storage()
 
@@ -529,33 +574,71 @@ async def painel_registro(ctx):
     await ctx.send(embed=embed, view=RegisterView())
 
 
-@bot.command()
-async def teste(ctx):
-    await ctx.send("to vivo")
+@bot.command(name="aceitos")
+async def listar_aceitos(ctx):
+    if not isinstance(ctx.author, discord.Member) or not has_approver_role(ctx.author):
+        await ctx.send("Você não tem permissão para ver os membros aceitos.")
+        return
+
+    approved_members = get_approved_members()
+
+    if not approved_members:
+        await ctx.send("Ainda não há membros aprovados registrados.")
+        return
+
+    embed = discord.Embed(
+        title="Membros aceitos",
+        color=get_embed_color()
+    )
+
+    linhas = []
+    for i, member_data in enumerate(reversed(approved_members[-15:]), start=1):
+        linhas.append(
+            f"**{i}.** {member_data['character_name']} | {member_data['character_id']} "
+            f"- {member_data['requested_role_name']} "
+            f"(recrutador: {member_data['recruiter_name']})"
+        )
+
+    embed.description = "\n".join(linhas)
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="aceitoslimpar")
+async def limpar_aceitos(ctx):
+    if not isinstance(ctx.author, discord.Member) or not has_approver_role(ctx.author):
+        await ctx.send("Você não tem permissão para limpar a lista.")
+        return
+
+    storage["approved_members"] = []
+    persist_storage()
+    await ctx.send("Lista de membros aceitos limpa com sucesso.")
 
 
 @bot.event
 async def on_member_join(member: discord.Member):
-    welcome_channel_id = config.get("welcome_channel_id", 0)
-    welcome_channel = member.guild.get_channel(welcome_channel_id)
+    print(f"ENTROU: {member.name}")
+
+    welcome_channel = member.guild.get_channel(config.get("welcome_channel_id"))
 
     if welcome_channel is None:
+        print("Canal não encontrado")
         return
 
-    card = await create_welcome_card(member)
-    file = discord.File(card, filename="welcome.png")
+    try:
+        card = await create_welcome_card(member)
+        file = discord.File(card, filename="welcome.png")
 
-    embed = discord.Embed(
-        title="Novo membro chegou",
-        description=(
-            f"{member.mention}, seja muito bem-vindo(a) a **{member.guild.name}**.\n\n"
-            f"Vá até <#{config.get('registration_channel_id')}> e faça seu registro."
-        ),
-        color=get_embed_color()
-    )
-    embed.set_image(url="attachment://welcome.png")
+        embed = discord.Embed(
+            description=f"{member.mention} bem-vindo(a)!",
+            color=get_embed_color()
+        )
+        embed.set_image(url="attachment://welcome.png")
 
-    await welcome_channel.send(embed=embed, file=file)
+        await welcome_channel.send(embed=embed, file=file)
+        print("Card enviado com sucesso")
+
+    except Exception as e:
+        print(f"ERRO NO CARD: {e}")
 
 
 token = os.getenv("DISCORD_TOKEN", config["token"])

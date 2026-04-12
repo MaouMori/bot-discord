@@ -7,5 +7,17 @@
       "requested_role_id": 1492748672608243752,
       "requested_role_name": "Calouro"
     }
-  }
+  },
+  "approved_members": [
+    {
+      "user_id": 702378565391613963,
+      "discord_name": "doctorwho03723",
+      "character_name": "oi",
+      "character_id": "45",
+      "recruiter_name": "to",
+      "requested_role_name": "Conselheiro",
+      "approved_by": "maousam",
+      "approved_at": "12/04/2026 04:24:08"
+    }
+  ]
 }
