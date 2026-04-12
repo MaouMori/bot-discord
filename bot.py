@@ -5,6 +5,24 @@ from typing import Any
 import discord
 from discord.ext import commands
 
+import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+def keep_alive():
+    port = int(os.environ.get("PORT", 10000))
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Bot online")
+
+    server = HTTPServer(("0.0.0.0", port), Handler)
+    server.serve_forever()
+
+threading.Thread(target=keep_alive, daemon=True).start()
+
 
 CONFIG_FILE = "config.json"
 STORAGE_FILE = "storage.json"
@@ -395,4 +413,7 @@ async def painel_registro(ctx):
 async def teste(ctx):
     await ctx.send("to vivo")
 
-bot.run(config["token"])
+import os
+
+token = os.getenv("DISCORD_TOKEN", config["token"])
+bot.run(token)
