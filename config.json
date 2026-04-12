@@ -11,7 +11,8 @@
     "Veterano": 1492748743626326126,
     "Conselheiro": 1492748810290597979,
     "Convidado": 1492749235383173200,
-    "Reitoria": 1492749271127031849
+    "Reitoria": 1492749271127031849,
+    "welcome_channel_id": 123456789012345678
   },
   "roles_without_default": [
     1492749271127031849

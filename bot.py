@@ -3,6 +3,8 @@ import os
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
+from io import BytesIO
+from PIL import Image, ImageDraw, ImageFont
 
 import discord
 from discord.ext import commands
@@ -73,6 +75,101 @@ def persist_storage() -> None:
 def has_approver_role(member: discord.Member) -> bool:
     approver_role_id = config["approver_role_id"]
     return any(role.id == approver_role_id for role in member.roles)
+    def load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    possible_fonts = [
+        "DejaVuSans-Bold.ttf",
+        "DejaVuSans.ttf",
+        "arial.ttf"
+    ]
+
+    for font_name in possible_fonts:
+        try:
+            return ImageFont.truetype(font_name, size)
+        except OSError:
+            continue
+
+    return ImageFont.load_default()
+
+
+async def create_welcome_card(member: discord.Member) -> BytesIO:
+    width, height = 1100, 420
+    background = Image.new("RGBA", (width, height), (18, 10, 28, 255))
+    draw = ImageDraw.Draw(background)
+
+    # fundo com camadas
+    draw.rounded_rectangle(
+        (20, 20, width - 20, height - 20),
+        radius=35,
+        fill=(32, 18, 52, 255),
+        outline=(130, 82, 255, 255),
+        width=3
+    )
+
+    draw.rounded_rectangle(
+        (45, 45, width - 45, height - 45),
+        radius=28,
+        fill=(24, 14, 40, 230)
+    )
+
+    # brilhos decorativos
+    draw.ellipse((760, -80, 1100, 240), fill=(110, 60, 200, 80))
+    draw.ellipse((-120, 240, 220, 560), fill=(180, 100, 255, 60))
+    draw.ellipse((840, 260, 1080, 500), fill=(255, 255, 255, 18))
+
+    # avatar
+    avatar_asset = member.display_avatar.replace(size=256)
+    avatar_bytes = BytesIO(await avatar_asset.read())
+    avatar = Image.open(avatar_bytes).convert("RGBA").resize((220, 220))
+
+    mask = Image.new("L", (220, 220), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.ellipse((0, 0, 220, 220), fill=255)
+
+    avatar_circle = Image.new("RGBA", (220, 220), (0, 0, 0, 0))
+    avatar_circle.paste(avatar, (0, 0), mask=mask)
+
+    # aro do avatar
+    draw.ellipse((78, 98, 322, 342), fill=(150, 100, 255, 255))
+    draw.ellipse((88, 108, 312, 332), fill=(28, 16, 46, 255))
+    background.paste(avatar_circle, (90, 110), avatar_circle)
+
+    # textos
+    title_font = load_font(54)
+    name_font = load_font(42)
+    small_font = load_font(24)
+
+    draw.text((370, 90), "BEM-VINDO(A)", font=title_font, fill=(245, 240, 255, 255))
+    draw.text((372, 150), f"{member.name}", font=name_font, fill=(180, 140, 255, 255))
+    draw.text(
+        (370, 225),
+        f"ao servidor {member.guild.name}",
+        font=small_font,
+        fill=(230, 220, 255, 220)
+    )
+    draw.text(
+        (370, 268),
+        "Faça seu registro para receber seu cargo.",
+        font=small_font,
+        fill=(255, 255, 255, 210)
+    )
+
+    # faixa inferior
+    draw.rounded_rectangle(
+        (360, 315, 980, 365),
+        radius=18,
+        fill=(115, 65, 235, 230)
+    )
+    draw.text(
+        (385, 327),
+        "Clique no botão de registro no canal indicado pela staff",
+        font=small_font,
+        fill=(255, 255, 255, 255)
+    )
+
+    output = BytesIO()
+    background.save(output, format="PNG")
+    output.seek(0)
+    return output
 
 
 class RegistrationModal(discord.ui.Modal, title="Registro de Membro"):
@@ -433,6 +530,29 @@ async def painel_registro(ctx):
 @bot.command()
 async def teste(ctx):
     await ctx.send("to vivo")
+
+@bot.event
+async def on_member_join(member: discord.Member):
+    welcome_channel_id = config.get("welcome_channel_id", 0)
+    welcome_channel = member.guild.get_channel(welcome_channel_id)
+
+    if welcome_channel is None:
+        return
+
+    card = await create_welcome_card(member)
+    file = discord.File(card, filename="welcome.png")
+
+    embed = discord.Embed(
+        title="Novo membro chegou",
+        description=(
+            f"{member.mention}, seja muito bem-vindo(a) a **{member.guild.name}**.\n\n"
+            f"Vá até <#{config.get('registration_channel_id')}> e faça seu registro."
+        ),
+        color=get_embed_color()
+    )
+    embed.set_image(url="attachment://welcome.png")
+
+    await welcome_channel.send(embed=embed, file=file)
 
 
 token = os.getenv("DISCORD_TOKEN", config["token"])
