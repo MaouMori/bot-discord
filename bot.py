@@ -379,7 +379,6 @@ class RegisterView(discord.ui.View):
         super().__init__(timeout=None)
         self.add_item(RegisterButton())
 
-
 class ApproveButton(discord.ui.Button):
     def __init__(self, target_user_id: int):
         super().__init__(
@@ -390,52 +389,54 @@ class ApproveButton(discord.ui.Button):
         self.target_user_id = target_user_id
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        if not isinstance(interaction.user, discord.Member):
-            await interaction.response.send_message("Permissão inválida.", ephemeral=True)
-            return
-
-        if not has_approver_role(interaction.user):
-            await interaction.response.send_message(
-                "Você não tem permissão para aprovar solicitações.",
-                ephemeral=True
-            )
-            return
-
-        guild = interaction.guild
-        if guild is None:
-            await interaction.response.send_message("Servidor não encontrado.", ephemeral=True)
-            return
-
-        pending = get_pending_requests()
-        request = pending.get(str(self.target_user_id))
-
-        if request is None:
-            await interaction.response.send_message(
-                "Essa solicitação já foi processada ou não existe mais.",
-                ephemeral=True
-            )
-            return
-
-        member = guild.get_member(self.target_user_id)
-        if member is None:
-            await interaction.response.send_message(
-                "Não encontrei o membro no servidor.",
-                ephemeral=True
-            )
-            return
-
-        default_role = guild.get_role(config["default_role_id"])
-        requested_role = guild.get_role(request["requested_role_id"])
-        roles_without_default = config.get("roles_without_default", [])
-
-        if requested_role is None:
-            await interaction.response.send_message(
-                "Cargo solicitado não encontrado no config.json.",
-                ephemeral=True
-            )
-            return
-
         try:
+            await interaction.response.defer()
+
+            if not isinstance(interaction.user, discord.Member):
+                await interaction.followup.send("Permissão inválida.", ephemeral=True)
+                return
+
+            if not has_approver_role(interaction.user):
+                await interaction.followup.send(
+                    "Você não tem permissão para aprovar solicitações.",
+                    ephemeral=True
+                )
+                return
+
+            guild = interaction.guild
+            if guild is None:
+                await interaction.followup.send("Servidor não encontrado.", ephemeral=True)
+                return
+
+            pending = get_pending_requests()
+            request = pending.get(str(self.target_user_id))
+
+            if request is None:
+                await interaction.followup.send(
+                    "Essa solicitação já foi processada ou não existe mais.",
+                    ephemeral=True
+                )
+                return
+
+            member = guild.get_member(self.target_user_id)
+            if member is None:
+                await interaction.followup.send(
+                    "Não encontrei o membro no servidor.",
+                    ephemeral=True
+                )
+                return
+
+            default_role = guild.get_role(config["default_role_id"])
+            requested_role = guild.get_role(request["requested_role_id"])
+            roles_without_default = config.get("roles_without_default", [])
+
+            if requested_role is None:
+                await interaction.followup.send(
+                    "Cargo solicitado não encontrado no config.json.",
+                    ephemeral=True
+                )
+                return
+
             if requested_role.id in roles_without_default:
                 await member.add_roles(
                     requested_role,
@@ -443,7 +444,7 @@ class ApproveButton(discord.ui.Button):
                 )
             else:
                 if default_role is None:
-                    await interaction.response.send_message(
+                    await interaction.followup.send(
                         "Cargo padrão não encontrado no config.json.",
                         ephemeral=True
                     )
@@ -459,45 +460,48 @@ class ApproveButton(discord.ui.Button):
                 nick=f'{request["character_name"]} | {request["character_id"]}',
                 reason="Registro aprovado"
             )
+
+            approved_members = get_approved_members()
+            approved_members.append({
+                "user_id": member.id,
+                "discord_name": str(member),
+                "character_name": request["character_name"],
+                "character_id": request["character_id"],
+                "recruiter_name": request["recruiter_name"],
+                "requested_role_name": request["requested_role_name"],
+                "approved_by": str(interaction.user),
+                "approved_at": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            })
+
+            pending.pop(str(self.target_user_id), None)
+            persist_storage()
+
+            try:
+                await member.send(
+                    f"Seu registro foi aprovado em **{guild.name}**.\n"
+                    f"Cargo recebido: **{requested_role.name}**\n"
+                    f"Recrutador informado: **{request['recruiter_name']}**\n"
+                    f"Nickname definido: **{request['character_name']} | {request['character_id']}**"
+                )
+            except discord.HTTPException:
+                pass
+
+            await interaction.message.edit(
+                content=f"Solicitação aprovada por {interaction.user.mention}.",
+                embed=None,
+                view=None
+            )
+
         except discord.Forbidden:
-            await interaction.response.send_message(
-                "O bot não conseguiu editar cargos ou nickname. "
-                "Verifique permissões e a posição do cargo do bot.",
+            await interaction.followup.send(
+                "O bot não conseguiu editar cargos ou nickname. Verifique permissões e a posição do cargo do bot.",
                 ephemeral=True
             )
-            return
-
-        approved_members = get_approved_members()
-        approved_members.append({
-            "user_id": member.id,
-            "discord_name": str(member),
-            "character_name": request["character_name"],
-            "character_id": request["character_id"],
-            "recruiter_name": request["recruiter_name"],
-            "requested_role_name": request["requested_role_name"],
-            "approved_by": str(interaction.user),
-            "approved_at": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        })
-
-        pending.pop(str(self.target_user_id), None)
-        persist_storage()
-
-        try:
-            await member.send(
-                f"Seu registro foi aprovado em **{guild.name}**.\n"
-                f"Cargo recebido: **{requested_role.name}**\n"
-                f"Recrutador informado: **{request['recruiter_name']}**\n"
-                f"Nickname definido: **{request['character_name']} | {request['character_id']}**"
+        except Exception as e:
+            await interaction.followup.send(
+                f"Erro ao aprovar: {e}",
+                ephemeral=True
             )
-        except discord.HTTPException:
-            pass
-
-        await interaction.response.edit_message(
-            content=f"Solicitação aprovada por {interaction.user.mention}.",
-            embed=None,
-            view=None
-        )
-
 
 class RejectButton(discord.ui.Button):
     def __init__(self, target_user_id: int):
@@ -509,46 +513,55 @@ class RejectButton(discord.ui.Button):
         self.target_user_id = target_user_id
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        if not isinstance(interaction.user, discord.Member):
-            await interaction.response.send_message("Permissão inválida.", ephemeral=True)
-            return
+        try:
+            await interaction.response.defer()
 
-        if not has_approver_role(interaction.user):
-            await interaction.response.send_message(
-                "Você não tem permissão para recusar solicitações.",
+            if not isinstance(interaction.user, discord.Member):
+                await interaction.followup.send("Permissão inválida.", ephemeral=True)
+                return
+
+            if not has_approver_role(interaction.user):
+                await interaction.followup.send(
+                    "Você não tem permissão para recusar solicitações.",
+                    ephemeral=True
+                )
+                return
+
+            guild = interaction.guild
+            pending = get_pending_requests()
+            request = pending.get(str(self.target_user_id))
+
+            if request is None:
+                await interaction.followup.send(
+                    "Essa solicitação já foi processada ou não existe mais.",
+                    ephemeral=True
+                )
+                return
+
+            pending.pop(str(self.target_user_id), None)
+            persist_storage()
+
+            if guild:
+                member = guild.get_member(self.target_user_id)
+                if member:
+                    try:
+                        await member.send(
+                            f"Sua solicitação de registro em **{guild.name}** foi recusada."
+                        )
+                    except discord.HTTPException:
+                        pass
+
+            await interaction.message.edit(
+                content=f"Solicitação recusada por {interaction.user.mention}.",
+                embed=None,
+                view=None
+            )
+
+        except Exception as e:
+            await interaction.followup.send(
+                f"Erro ao recusar: {e}",
                 ephemeral=True
             )
-            return
-
-        guild = interaction.guild
-        pending = get_pending_requests()
-        request = pending.get(str(self.target_user_id))
-
-        if request is None:
-            await interaction.response.send_message(
-                "Essa solicitação já foi processada ou não existe mais.",
-                ephemeral=True
-            )
-            return
-
-        pending.pop(str(self.target_user_id), None)
-        persist_storage()
-
-        if guild:
-            member = guild.get_member(self.target_user_id)
-            if member:
-                try:
-                    await member.send(
-                        f"Sua solicitação de registro em **{guild.name}** foi recusada."
-                    )
-                except discord.HTTPException:
-                    pass
-
-        await interaction.response.edit_message(
-            content=f"Solicitação recusada por {interaction.user.mention}.",
-            embed=None,
-            view=None
-        )
 
 
 class ApprovalView(discord.ui.View):
