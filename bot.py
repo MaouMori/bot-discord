@@ -265,13 +265,7 @@ class ApproveButton(discord.ui.Button):
 
         default_role = guild.get_role(config["default_role_id"])
         requested_role = guild.get_role(request["requested_role_id"])
-
-        if default_role is None:
-            await interaction.response.send_message(
-                "Cargo padrão não encontrado no config.json.",
-                ephemeral=True
-            )
-            return
+        roles_without_default = config.get("roles_without_default", [])
 
         if requested_role is None:
             await interaction.response.send_message(
@@ -281,7 +275,25 @@ class ApproveButton(discord.ui.Button):
             return
 
         try:
-            await member.add_roles(default_role, requested_role, reason="Registro aprovado")
+            if requested_role.id in roles_without_default:
+                await member.add_roles(
+                    requested_role,
+                    reason="Registro aprovado"
+                )
+            else:
+                if default_role is None:
+                    await interaction.response.send_message(
+                        "Cargo padrão não encontrado no config.json.",
+                        ephemeral=True
+                    )
+                    return
+
+                await member.add_roles(
+                    default_role,
+                    requested_role,
+                    reason="Registro aprovado"
+                )
+
             await member.edit(
                 nick=f'{request["character_name"]} | {request["character_id"]}',
                 reason="Registro aprovado"
