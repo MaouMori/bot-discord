@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 {
   "pending_requests": {
     "407183729807720449": {
@@ -9,16 +8,4 @@
       "requested_role_name": "Calouro"
     }
   }
-=======
-{
-  "pending_requests": {
-    "407183729807720449": {
-      "user_id": 407183729807720449,
-      "character_name": "maou",
-      "character_id": "867",
-      "requested_role_id": 1492748672608243752,
-      "requested_role_name": "Calouro"
-    }
-  }
->>>>>>> 186edd932decee44f9109eaebf43bcd936266a5d
 }
