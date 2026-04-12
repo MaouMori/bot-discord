@@ -1,13 +1,12 @@
 import json
 import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 
 import discord
 from discord.ext import commands
 
-import os
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
 
 def keep_alive():
     port = int(os.environ.get("PORT", 10000))
@@ -21,8 +20,8 @@ def keep_alive():
     server = HTTPServer(("0.0.0.0", port), Handler)
     server.serve_forever()
 
-threading.Thread(target=keep_alive, daemon=True).start()
 
+threading.Thread(target=keep_alive, daemon=True).start()
 
 CONFIG_FILE = "config.json"
 STORAGE_FILE = "storage.json"
@@ -91,6 +90,13 @@ class RegistrationModal(discord.ui.Modal, title="Registro de Membro"):
         required=True
     )
 
+    recruiter_name = discord.ui.TextInput(
+        label="Quem recrutou você?",
+        placeholder="Ex: Yuri",
+        max_length=50,
+        required=True
+    )
+
     async def on_submit(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_message(
             "Agora escolha o cargo que deseja solicitar:",
@@ -98,16 +104,24 @@ class RegistrationModal(discord.ui.Modal, title="Registro de Membro"):
             view=RoleSelectionView(
                 user_id=interaction.user.id,
                 character_name=str(self.character_name).strip(),
-                character_id=str(self.character_id).strip()
+                character_id=str(self.character_id).strip(),
+                recruiter_name=str(self.recruiter_name).strip()
             )
         )
 
 
 class RoleSelect(discord.ui.Select):
-    def __init__(self, user_id: int, character_name: str, character_id: str):
+    def __init__(
+        self,
+        user_id: int,
+        character_name: str,
+        character_id: str,
+        recruiter_name: str
+    ):
         self.user_id = user_id
         self.character_name = character_name
         self.character_id = character_id
+        self.recruiter_name = recruiter_name
 
         options = [
             discord.SelectOption(label=role_name, value=str(role_id))
@@ -153,6 +167,7 @@ class RoleSelect(discord.ui.Select):
             "user_id": interaction.user.id,
             "character_name": self.character_name,
             "character_id": self.character_id,
+            "recruiter_name": self.recruiter_name,
             "requested_role_id": selected_role_id,
             "requested_role_name": selected_role_name
         }
@@ -181,6 +196,7 @@ class RoleSelect(discord.ui.Select):
         embed.add_field(name="Usuário", value=interaction.user.mention, inline=False)
         embed.add_field(name="Nome", value=self.character_name, inline=True)
         embed.add_field(name="ID", value=self.character_id, inline=True)
+        embed.add_field(name="Recrutador", value=self.recruiter_name, inline=False)
         embed.add_field(name="Cargo solicitado", value=selected_role_name, inline=False)
         embed.set_footer(text=f"User ID: {interaction.user.id}")
 
@@ -196,9 +212,17 @@ class RoleSelect(discord.ui.Select):
 
 
 class RoleSelectionView(discord.ui.View):
-    def __init__(self, user_id: int, character_name: str, character_id: str):
+    def __init__(
+        self,
+        user_id: int,
+        character_name: str,
+        character_id: str,
+        recruiter_name: str
+    ):
         super().__init__(timeout=300)
-        self.add_item(RoleSelect(user_id, character_name, character_id))
+        self.add_item(
+            RoleSelect(user_id, character_name, character_id, recruiter_name)
+        )
 
 
 class RegisterButton(discord.ui.Button):
@@ -313,6 +337,7 @@ class ApproveButton(discord.ui.Button):
             await member.send(
                 f"Seu registro foi aprovado em **{guild.name}**.\n"
                 f"Cargo recebido: **{requested_role.name}**\n"
+                f"Recrutador informado: **{request['recruiter_name']}**\n"
                 f"Nickname definido: **{request['character_name']} | {request['character_id']}**"
             )
         except discord.HTTPException:
@@ -388,24 +413,6 @@ class ApprovalView(discord.ui.View):
 async def on_ready():
     bot.add_view(RegisterView())
     print(f"Bot conectado como {bot.user}")
-    
-
-class RegisterButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(
-            label="Registrar",
-            style=discord.ButtonStyle.primary,
-            custom_id="persistent_register_button"
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(RegistrationModal())
-
-
-class RegisterView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.add_item(RegisterButton())
 
 
 @bot.command(name="painelregistro")
@@ -414,18 +421,19 @@ async def painel_registro(ctx):
         title="Registro de Membros",
         description=(
             "Clique no botão abaixo para iniciar seu registro.\n\n"
-            "Você vai informar o nome do personagem, o ID e escolher o cargo que deseja solicitar."
+            "Você vai informar o nome do personagem, o ID, quem recrutou você "
+            "e depois escolher o cargo que deseja solicitar."
         ),
         color=discord.Color.purple()
     )
 
     await ctx.send(embed=embed, view=RegisterView())
 
+
 @bot.command()
 async def teste(ctx):
     await ctx.send("to vivo")
 
-import os
 
 token = os.getenv("DISCORD_TOKEN", config["token"])
 bot.run(token)
