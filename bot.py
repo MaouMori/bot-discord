@@ -4,8 +4,8 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 from io import BytesIO
-from PIL import Image, ImageDraw, ImageFont
 
+from PIL import Image, ImageDraw, ImageFont
 import discord
 from discord.ext import commands
 
@@ -75,7 +75,9 @@ def persist_storage() -> None:
 def has_approver_role(member: discord.Member) -> bool:
     approver_role_id = config["approver_role_id"]
     return any(role.id == approver_role_id for role in member.roles)
-    def load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+
+
+def load_font(size: int):
     possible_fonts = [
         "DejaVuSans-Bold.ttf",
         "DejaVuSans.ttf",
@@ -530,6 +532,7 @@ async def painel_registro(ctx):
 @bot.command()
 async def teste(ctx):
     await ctx.send("to vivo")
+
 
 @bot.event
 async def on_member_join(member: discord.Member):
