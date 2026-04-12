@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {
   "token": "SEU_TOKEN_AQUI",
   "guild_id": 123456789012345678,
@@ -13,4 +14,21 @@
     "Convidado": 1492749235383173200,
     "Reitoria": 1492749271127031849
   }
+=======
+{
+  "token": "SEU_TOKEN_AQUI",
+  "guild_id": 123456789012345678,
+  "registration_channel_id": 1492749465499734017,
+  "approval_channel_id": 1492749494566260819,
+  "default_role_id": 1492750156167123075,
+  "approver_role_id": 1492749307563212843,
+  "embed_color": 5793266,
+  "requestable_roles": {
+    "Calouro": 1492748672608243752,
+    "Veterano": 1492748743626326126,
+    "Conselheiro": 1492748810290597979,
+    "Convidado": 1492749235383173200,
+    "Reitoria": 1492749271127031849
+  }
+>>>>>>> 186edd932decee44f9109eaebf43bcd936266a5d
 }
