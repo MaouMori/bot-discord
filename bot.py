@@ -88,8 +88,13 @@ def persist_storage() -> None:
 
 
 def has_approver_role(member: discord.Member) -> bool:
-    approver_role_id = config["approver_role_id"]
-    return any(role.id == approver_role_id for role in member.roles)
+    approver_role_ids = config.get("approver_role_ids")
+
+    if approver_role_ids is None:
+        single_role_id = config.get("approver_role_id")
+        approver_role_ids = [single_role_id] if single_role_id else []
+
+    return any(role.id in approver_role_ids for role in member.roles)
 
 
 def load_font(size: int):
