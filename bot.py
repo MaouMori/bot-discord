@@ -2682,28 +2682,24 @@ class DanceBindModal(discord.ui.Modal, title="Gerador de Bind de Dança"):
     key_input = discord.ui.TextInput(
         label="Tecla da bind",
         placeholder="ex: F6, K, NUMPAD1",
-        default="F6",
         max_length=30,
         required=True
     )
     prefix_input = discord.ui.TextInput(
         label="Primeira parte",
         placeholder="ex: e3, e, e2, dance, anim",
-        default="e3",
         max_length=30,
         required=True
     )
     dance_input = discord.ui.TextInput(
         label="Nome da dança",
         placeholder="ex: dancar23",
-        default="dancar23",
         max_length=80,
         required=True
     )
     ids_input = discord.ui.TextInput(
         label="IDs",
-        placeholder="3234 3214 ou 3234, 3214; 9999",
-        default="3234\n3214",
+        placeholder="ex: 123,541,528",
         style=discord.TextStyle.paragraph,
         max_length=1200,
         required=True
@@ -2711,7 +2707,6 @@ class DanceBindModal(discord.ui.Modal, title="Gerador de Bind de Dança"):
 
     def __init__(self, prefix="e3", version="orleans"):
         super().__init__()
-        self.prefix_input.default = str(prefix or "e3")
         self.version = normalize_bind_version(version)
 
     async def on_submit(self, interaction):
