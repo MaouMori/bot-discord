@@ -71,7 +71,7 @@ async def process_commands_once(message):
     if message_id in PROCESSED_COMMAND_MESSAGES:
         return
 
-    if not acquire_distributed_command_lock(message):
+    if not await asyncio.to_thread(acquire_distributed_command_lock, message):
         return
 
     PROCESSED_COMMAND_MESSAGES.add(message_id)
@@ -5815,7 +5815,7 @@ async def send_member_link_status_notification(request_row: dict):
     member_name = f"Membro #{member_id}" if member_id else "Membro"
 
     if member_id:
-        card = get_member_card_by_id(member_id)
+        card = await run_blocking_db(lambda: get_member_card_by_id(member_id))
         if card and card.get("nome"):
             member_name = str(card.get("nome"))
 
@@ -5843,20 +5843,22 @@ async def send_member_link_status_notification(request_row: dict):
         pass
 
 
-@tasks.loop(seconds=45)
+@tasks.loop(seconds=120)
 async def sync_member_link_request_notifications():
     sb = require_supabase()
     if not sb:
         return
 
     try:
-        result = (
-            sb.table("member_card_link_requests")
-            .select("id, member_card_id, requested_by_discord_id, status, rejected_reason, approved_at")
-            .in_("status", ["approved", "rejected"])
-            .order("approved_at", desc=True)
-            .limit(80)
-            .execute()
+        result = await run_blocking_db(
+            lambda: (
+                sb.table("member_card_link_requests")
+                .select("id, member_card_id, requested_by_discord_id, status, rejected_reason, approved_at")
+                .in_("status", ["approved", "rejected"])
+                .order("approved_at", desc=True)
+                .limit(80)
+                .execute()
+            )
         )
     except Exception:
         return
@@ -5974,8 +5976,12 @@ def get_recruitment_form_field_labels():
     return campos if isinstance(campos, list) else []
 
 
+BACKGROUND_DB_LOCK = asyncio.Lock()
+
+
 async def run_blocking_db(callable_obj):
-    return await asyncio.to_thread(callable_obj)
+    async with BACKGROUND_DB_LOCK:
+        return await asyncio.to_thread(callable_obj)
 
 
 def build_recruitment_description(respostas, fields=None):
