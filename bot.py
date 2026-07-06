@@ -726,10 +726,14 @@ async def send_dance_bind_result(target, key, prefix, dance, ids_text, *, epheme
         )
         file = discord.File(io.BytesIO(bind.encode("utf-8")), filename="bind-danca.txt")
 
+    kwargs = {"embed": embed}
+    if file is not None:
+        kwargs["file"] = file
+
     if isinstance(target, discord.Interaction):
-        await target.response.send_message(embed=embed, file=file, ephemeral=ephemeral)
+        await target.response.send_message(**kwargs, ephemeral=ephemeral)
     else:
-        await target.send(embed=embed, file=file)
+        await target.send(**kwargs)
 
 
 def get_pending_requests():
