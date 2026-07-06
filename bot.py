@@ -696,7 +696,7 @@ def build_dance_bind(key, prefix, dance, ids_text, version="orleans"):
         return None, "Preencha tecla, comando, dança e pelo menos 1 ID.", ids
 
     if version == "rua2":
-        inner_command = "; ".join(f"{prefix} , {player_id} , {dance}" for player_id in ids)
+        inner_command = "; ".join(f"{prefix} {player_id} {dance}" for player_id in ids)
     else:
         inner_command = "; ".join(f"{prefix} {dance} {player_id}" for player_id in ids)
 
@@ -730,7 +730,7 @@ async def send_dance_bind_result(target, key, prefix, dance, ids_text, *, versio
     embed.add_field(name="Dança", value=f"`{clean_bind_token(dance)}`", inline=True)
     embed.add_field(name="Versão", value=f"`{version}`", inline=True)
     if version == "rua2":
-        embed.set_footer(text='Formato Rua2: bind keyboard "tecla" "comando , id , danca"')
+        embed.set_footer(text='Formato Rua2: bind keyboard "tecla" "comando id danca"')
     else:
         embed.set_footer(text='Formato Orleans: bind keyboard "tecla" "comando danca id"')
 
@@ -2761,7 +2761,7 @@ async def painel_bind_danca(ctx):
     embed = discord.Embed(
         title="Gerador de Bind de Dança FiveM",
         description=(
-            "Escolha **Orleans** para o formato atual ou **Rua2** para `comando , id , danca`.\n"
+            "Escolha **Orleans** para o formato atual ou **Rua2** para `comando id danca`.\n"
             "Depois preencha tecla, comando, dança e os IDs."
         ),
         color=get_embed_color()
@@ -2770,7 +2770,7 @@ async def painel_bind_danca(ctx):
         name="Exemplos",
         value=(
             'Orleans: `bind keyboard "F6" "e3 dancar23 3234"`\n'
-            'Rua2: `bind keyboard "F6" "e3 , 3234 , dancar23"`'
+            'Rua2: `bind keyboard "F6" "e3 3234 dancar23"`'
         ),
         inline=False
     )
