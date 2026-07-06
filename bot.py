@@ -678,26 +678,41 @@ def get_bind_ids(value):
     return ids
 
 
-def build_dance_bind(key, prefix, dance, ids_text):
+def normalize_bind_version(version):
+    value = normalize_text(str(version or "orleans")).replace(" ", "")
+    if value in ("rua2", "rua"):
+        return "rua2"
+    return "orleans"
+
+
+def build_dance_bind(key, prefix, dance, ids_text, version="orleans"):
     key = clean_bind_token(key)
     prefix = clean_bind_token(prefix)
     dance = clean_bind_token(dance)
     ids = get_bind_ids(ids_text)
+    version = normalize_bind_version(version)
 
     if not key or not prefix or not dance or not ids:
         return None, "Preencha tecla, comando, dança e pelo menos 1 ID.", ids
 
-    inner_command = "; ".join(f"{prefix} {dance} {player_id}" for player_id in ids)
+    if version == "rua2":
+        inner_command = "; ".join(f"{prefix} , {player_id} , {dance}" for player_id in ids)
+    else:
+        inner_command = "; ".join(f"{prefix} {dance} {player_id}" for player_id in ids)
+
     return f'bind keyboard "{key}" "{inner_command}"', None, ids
 
 
-async def send_dance_bind_result(target, key, prefix, dance, ids_text, *, ephemeral=False):
-    bind, error, ids = build_dance_bind(key, prefix, dance, ids_text)
+async def send_dance_bind_result(target, key, prefix, dance, ids_text, *, version="orleans", ephemeral=False):
+    version = normalize_bind_version(version)
+    bind, error, ids = build_dance_bind(key, prefix, dance, ids_text, version=version)
 
     if error:
         message = (
             f"❌ {error}\n"
-            "Exemplo: `!binddanca F6 e3 dancar23 3234 3214`"
+            "Exemplos:\n"
+            "`!binddanca F6 e3 dancar23 3234 3214`\n"
+            "`!binddanca rua2 F6 e3 dancar23 3234 3214`"
         )
         if isinstance(target, discord.Interaction):
             await target.response.send_message(message, ephemeral=ephemeral)
@@ -713,7 +728,11 @@ async def send_dance_bind_result(target, key, prefix, dance, ids_text, *, epheme
     embed.add_field(name="Tecla", value=f"`{clean_bind_token(key)}`", inline=True)
     embed.add_field(name="Comando", value=f"`{clean_bind_token(prefix)}`", inline=True)
     embed.add_field(name="Dança", value=f"`{clean_bind_token(dance)}`", inline=True)
-    embed.set_footer(text='Formato: bind keyboard "tecla" "comando dança id; comando dança id"')
+    embed.add_field(name="Versão", value=f"`{version}`", inline=True)
+    if version == "rua2":
+        embed.set_footer(text='Formato Rua2: bind keyboard "tecla" "comando , id , danca"')
+    else:
+        embed.set_footer(text='Formato Orleans: bind keyboard "tecla" "comando danca id"')
 
     file = None
     if len(bind) <= 930:
@@ -2690,9 +2709,10 @@ class DanceBindModal(discord.ui.Modal, title="Gerador de Bind de Dança"):
         required=True
     )
 
-    def __init__(self, prefix="e3"):
+    def __init__(self, prefix="e3", version="orleans"):
         super().__init__()
         self.prefix_input.default = str(prefix or "e3")
+        self.version = normalize_bind_version(version)
 
     async def on_submit(self, interaction):
         await send_dance_bind_result(
@@ -2701,33 +2721,38 @@ class DanceBindModal(discord.ui.Modal, title="Gerador de Bind de Dança"):
             str(self.prefix_input.value),
             str(self.dance_input.value),
             str(self.ids_input.value),
+            version=self.version,
             ephemeral=True
         )
 
 
 class DanceBindPrefixButton(discord.ui.Button):
-    def __init__(self, prefix):
+    def __init__(self, prefix, version="orleans"):
         super().__init__(label=prefix, style=discord.ButtonStyle.secondary)
         self.prefix = prefix
+        self.version = normalize_bind_version(version)
 
     async def callback(self, interaction):
-        await interaction.response.send_modal(DanceBindModal(prefix=self.prefix))
+        await interaction.response.send_modal(DanceBindModal(prefix=self.prefix, version=self.version))
 
 
-class DanceBindOpenButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(label="Gerar bind", style=discord.ButtonStyle.primary)
+class DanceBindVersionButton(discord.ui.Button):
+    def __init__(self, version, style):
+        label = "Orleans" if normalize_bind_version(version) == "orleans" else "Rua2"
+        super().__init__(label=label, style=style)
+        self.version = normalize_bind_version(version)
 
     async def callback(self, interaction):
-        await interaction.response.send_modal(DanceBindModal(prefix="e3"))
+        await interaction.response.send_modal(DanceBindModal(prefix="e3", version=self.version))
 
 
 class DanceBindView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(DanceBindOpenButton())
+        self.add_item(DanceBindVersionButton("orleans", discord.ButtonStyle.primary))
+        self.add_item(DanceBindVersionButton("rua2", discord.ButtonStyle.success))
         for prefix in ("e3", "e", "e2", "e4", "e5"):
-            self.add_item(DanceBindPrefixButton(prefix))
+            self.add_item(DanceBindPrefixButton(prefix, version="orleans"))
 
 
 @bot.command(name="painelbinddanca", aliases=["painelbind"])
@@ -2736,14 +2761,17 @@ async def painel_bind_danca(ctx):
     embed = discord.Embed(
         title="Gerador de Bind de Dança FiveM",
         description=(
-            "Clique em **Gerar bind** ou escolha um atalho de comando.\n"
+            "Escolha **Orleans** para o formato atual ou **Rua2** para `comando , id , danca`.\n"
             "Depois preencha tecla, comando, dança e os IDs."
         ),
         color=get_embed_color()
     )
     embed.add_field(
-        name="Exemplo",
-        value='`bind keyboard "F6" "e3 dancar23 3234; e3 dancar23 3214"`',
+        name="Exemplos",
+        value=(
+            'Orleans: `bind keyboard "F6" "e3 dancar23 3234"`\n'
+            'Rua2: `bind keyboard "F6" "e3 , 3234 , dancar23"`'
+        ),
         inline=False
     )
     await ctx.send(embed=embed, view=DanceBindView())
@@ -2752,14 +2780,28 @@ async def painel_bind_danca(ctx):
 @bot.command(name="binddanca", aliases=["bind", "danca"])
 @commands.cooldown(1, 5, commands.BucketType.user)
 async def bind_danca(ctx, key: str = None, prefix: str = None, dance: str = None, *, ids: str = None):
+    version = "orleans"
+
+    if normalize_bind_version(key) == "rua2":
+        version = "rua2"
+        ids_parts = str(ids or "").split(maxsplit=1)
+        if prefix and dance and ids_parts:
+            key = prefix
+            prefix = dance
+            dance = ids_parts[0]
+            ids = ids_parts[1] if len(ids_parts) > 1 else None
+
     if not key or not prefix or not dance or not ids:
         await ctx.send(
-            "Uso: `!binddanca <tecla> <comando> <danca> <ids>`\n"
-            "Exemplo: `!binddanca F6 e3 dancar23 3234 3214`"
+            "Uso Orleans: `!binddanca <tecla> <comando> <danca> <ids>`\n"
+            "Uso Rua2: `!binddanca rua2 <tecla> <comando> <danca> <ids>`\n"
+            "Exemplos:\n"
+            "`!binddanca F6 e3 dancar23 3234 3214`\n"
+            "`!binddanca rua2 F6 e3 dancar23 3234 3214`"
         )
         return
 
-    await send_dance_bind_result(ctx, key, prefix, dance, ids)
+    await send_dance_bind_result(ctx, key, prefix, dance, ids, version=version)
 
 
 @bot.command(name="help")
@@ -2818,8 +2860,9 @@ async def help_command(ctx):
         "`!parcerias` → ver parcerias da Iconics",
     ]
     sections["🎮 FiveM"] += [
-        "`!painelbinddanca` → abre o gerador interativo de bind de dança",
-        "`!binddanca <tecla> <comando> <danca> <ids>` → gera a bind direto",
+        "`!painelbinddanca` → abre o gerador com versões Orleans e Rua2",
+        "`!binddanca <tecla> <comando> <danca> <ids>` → gera bind Orleans",
+        "`!binddanca rua2 <tecla> <comando> <danca> <ids>` → gera bind Rua2",
     ]
     sections["🎭 Diversão"] += [
         "`!humor` → frase aleatória",
