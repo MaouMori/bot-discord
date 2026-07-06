@@ -732,7 +732,7 @@ async def send_dance_bind_result(target, key, prefix, dance, ids_text, *, versio
     if version == "rua2":
         embed.set_footer(text='Formato Rua2: bind keyboard "tecla" "comando id danca"')
     else:
-        embed.set_footer(text='Formato Orleans: bind keyboard "tecla" "comando danca id"')
+        embed.set_footer(text='Formato Padrao: bind keyboard "tecla" "comando danca id"')
 
     file = None
     if len(bind) <= 930:
@@ -2733,7 +2733,7 @@ class DanceBindPrefixButton(discord.ui.Button):
 
 class DanceBindVersionButton(discord.ui.Button):
     def __init__(self, version, style):
-        label = "Orleans" if normalize_bind_version(version) == "orleans" else "Rua2"
+        label = "Padrao" if normalize_bind_version(version) == "orleans" else "Rua2"
         super().__init__(label=label, style=style)
         self.version = normalize_bind_version(version)
 
@@ -2754,7 +2754,7 @@ async def painel_bind_danca(ctx):
     embed = discord.Embed(
         title="Gerador de Bind de Dança FiveM",
         description=(
-            "Escolha **Orleans** para o formato atual ou **Rua2** para `comando id danca`.\n"
+            "Escolha **Padrao** para o formato atual ou **Rua2** para `comando id danca`.\n"
             "Depois preencha tecla, comando, dança e os IDs."
         ),
         color=get_embed_color()
@@ -2762,7 +2762,7 @@ async def painel_bind_danca(ctx):
     embed.add_field(
         name="Exemplos",
         value=(
-            'Orleans: `bind keyboard "F6" "e3 dancar23 3234"`\n'
+            'Padrao: `bind keyboard "F6" "e3 dancar23 3234"`\n'
             'Rua2: `bind keyboard "F6" "e3 3234 dancar23"`'
         ),
         inline=False
@@ -2791,7 +2791,7 @@ async def bind_danca(ctx, key: str = None, prefix: str = None, dance: str = None
 
     if not key or not prefix or not dance or not ids:
         await ctx.send(
-            "Uso Orleans: `!binddanca <tecla> <comando> <danca> <ids>`\n"
+            "Uso Padrao: `!binddanca <tecla> <comando> <danca> <ids>`\n"
             "Uso Rua2: `!binddanca rua2 <tecla> <comando> <danca> <ids>`\n"
             "Exemplos:\n"
             "`!binddanca F6 e3 dancar23 3234 3214`\n"
@@ -2858,8 +2858,8 @@ async def help_command(ctx):
         "`!parcerias` → ver parcerias da Iconics",
     ]
     sections["🎮 FiveM"] += [
-        "`!painelbinddanca` → abre o gerador com versões Orleans e Rua2",
-        "`!binddanca <tecla> <comando> <danca> <ids>` → gera bind Orleans",
+        "`!painelbinddanca` → abre o gerador com versões Padrao e Rua2",
+        "`!binddanca <tecla> <comando> <danca> <ids>` → gera bind Padrao",
         "`!binddanca rua2 <tecla> <comando> <danca> <ids>` → gera bind Rua2",
     ]
     sections["🎭 Diversão"] += [
