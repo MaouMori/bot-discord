@@ -6,9 +6,11 @@ import random
 import requests
 import re
 import io
+import socket
 import unicodedata
 import asyncio
 from collections import deque
+from urllib.parse import urlparse
 from supabase import create_client
 from config_persistente_supabase import (
     get_config_from_db, set_config_in_db,
@@ -25,6 +27,7 @@ init_config_keys()
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 from datetime import datetime
+import time
 
 
 import discord
@@ -138,7 +141,71 @@ def looks_configured_secret(value):
 
 
 def looks_supabase_url(value):
-    return looks_configured_secret(value) and value.strip().startswith(("http://", "https://"))
+    if not looks_configured_secret(value):
+        return False
+
+    parsed = urlparse(value.strip())
+    return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+
+
+def can_resolve_url_hostname(value):
+    if not looks_supabase_url(value):
+        return False
+
+    hostname = urlparse(value.strip()).hostname
+    if not hostname:
+        return False
+
+    try:
+        socket.getaddrinfo(hostname, None)
+        return True
+    except OSError:
+        return False
+
+
+def choose_supabase_url():
+    env_url = os.getenv("SUPABASE_URL")
+    config_url = config.get("supabase_url")
+
+    if looks_supabase_url(env_url):
+        if can_resolve_url_hostname(env_url):
+            return env_url.strip()
+
+        if looks_supabase_url(config_url) and can_resolve_url_hostname(config_url):
+            print("[SUPABASE] SUPABASE_URL do ambiente nao resolveu DNS; usando supabase_url do config.json.")
+            return config_url.strip()
+
+        return env_url.strip()
+
+    if looks_supabase_url(config_url):
+        return config_url.strip()
+
+    return env_url or config_url
+
+
+def choose_configured_secret(env_name, config_key):
+    env_value = os.getenv(env_name)
+    if looks_configured_secret(env_value):
+        return env_value.strip()
+
+    config_value = config.get(config_key)
+    if looks_configured_secret(config_value):
+        return config_value.strip()
+
+    return env_value or config_value
+
+
+SYNC_ERROR_STATE = {}
+
+
+def log_sync_error(key, prefix, error, cooldown_seconds=300):
+    now = time.time()
+    message = str(error)
+    state = SYNC_ERROR_STATE.get(key, {})
+
+    if state.get("message") != message or now - state.get("last_print", 0) >= cooldown_seconds:
+        print(f"{prefix} {message}")
+        SYNC_ERROR_STATE[key] = {"message": message, "last_print": now}
 
 
 KNOWLEDGE_FILE = "knowledge.json"
@@ -161,8 +228,8 @@ print(">>> BOT ATUAL CARREGADO <<<")
 print(">>> KNOWLEDGE EXISTE:", isinstance(knowledge, dict))
 print(">>> ARQUIVO:", os.path.abspath(__file__))
 
-SUPABASE_URL = os.getenv("SUPABASE_URL") or config.get("supabase_url")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or config.get("supabase_service_role_key")
+SUPABASE_URL = choose_supabase_url()
+SUPABASE_SERVICE_ROLE_KEY = choose_configured_secret("SUPABASE_SERVICE_ROLE_KEY", "supabase_service_role_key")
 
 supabase = None
 
@@ -561,9 +628,9 @@ async def _autodelete_after_invoke(ctx):
 # HELPERS
 # =========================
 
-SUPABASE_URL = os.getenv("SUPABASE_URL") or config.get("supabase_url")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or config.get("supabase_service_role_key")
-SUPABASE_ADMIN_UUID = os.getenv("SUPABASE_ADMIN_UUID") or config.get("supabase_admin_uuid")
+SUPABASE_URL = choose_supabase_url()
+SUPABASE_SERVICE_ROLE_KEY = choose_configured_secret("SUPABASE_SERVICE_ROLE_KEY", "supabase_service_role_key")
+SUPABASE_ADMIN_UUID = choose_configured_secret("SUPABASE_ADMIN_UUID", "supabase_admin_uuid")
 
 def get_ticket_ai_disabled():
     return storage["ticket_ai_disabled"]
@@ -3479,9 +3546,9 @@ def is_valid_uuid(val):
 # =========================
 try:
     from supabase import create_client as supabase_create_client
-    _sb_url = os.getenv("SUPABASE_URL") or config.get("supabase_url")
-    _sb_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or config.get("supabase_service_role_key")
-    _sb_admin_uuid_raw = os.getenv("SUPABASE_ADMIN_UUID") or config.get("supabase_admin_uuid")
+    _sb_url = choose_supabase_url()
+    _sb_key = choose_configured_secret("SUPABASE_SERVICE_ROLE_KEY", "supabase_service_role_key")
+    _sb_admin_uuid_raw = choose_configured_secret("SUPABASE_ADMIN_UUID", "supabase_admin_uuid")
     _sb_admin_uuid = _sb_admin_uuid_raw if is_valid_uuid(_sb_admin_uuid_raw) else None
     if looks_supabase_url(_sb_url) and looks_configured_secret(_sb_key):
         try:
@@ -5947,7 +6014,7 @@ async def sync_site_logs_to_discord():
             .execute()
         )
     except Exception as e:
-        print("[SITE LOG SYNC] Erro ao buscar logs do site:", e)
+        log_sync_error("site_logs_fetch", "[SITE LOG SYNC] Erro ao buscar logs do site:", e)
         return
 
     rows = list(reversed(result.data or []))
@@ -5968,7 +6035,7 @@ async def sync_site_logs_to_discord():
             notified_ids.add(key)
             changed = True
         except Exception as e:
-            print(f"[SITE LOG SYNC] Erro ao enviar log #{log_id}:", e)
+            log_sync_error(f"site_log_send_{log_id}", f"[SITE LOG SYNC] Erro ao enviar log #{log_id}:", e)
             continue
 
     if changed:
@@ -6004,7 +6071,7 @@ async def sync_recruitment_submissions_to_discord():
             .execute()
         )
     except Exception as e:
-        print("[RECRUITMENT SYNC] Erro ao buscar candidaturas:", e)
+        log_sync_error("recruitment_fetch", "[RECRUITMENT SYNC] Erro ao buscar candidaturas:", e)
         return
 
     rows = list(reversed(result.data or []))
@@ -6025,7 +6092,7 @@ async def sync_recruitment_submissions_to_discord():
             notified_ids.add(key)
             changed = True
         except Exception as e:
-            print(f"[RECRUITMENT SYNC] Erro ao enviar candidatura #{submission_id}:", e)
+            log_sync_error(f"recruitment_send_{submission_id}", f"[RECRUITMENT SYNC] Erro ao enviar candidatura #{submission_id}:", e)
             continue
 
     if changed:
