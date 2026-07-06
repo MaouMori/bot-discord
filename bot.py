@@ -5974,6 +5974,10 @@ def get_recruitment_form_field_labels():
     return campos if isinstance(campos, list) else []
 
 
+async def run_blocking_db(callable_obj):
+    return await asyncio.to_thread(callable_obj)
+
+
 def build_recruitment_description(respostas, fields=None):
     fields = fields or []
     used = set()
@@ -5998,11 +6002,11 @@ def build_recruitment_description(respostas, fields=None):
     return "\n".join(lines)[:4000] or "-"
 
 
-def build_recruitment_submission_embed(row):
+def build_recruitment_submission_embed(row, fields=None):
     respostas = row.get("respostas") or {}
     if not isinstance(respostas, dict):
         respostas = {"respostas": respostas}
-    fields = get_recruitment_form_field_labels()
+    fields = fields if fields is not None else get_recruitment_form_field_labels()
 
     embed = discord.Embed(
         title="Nova candidatura recebida",
@@ -6035,7 +6039,7 @@ def build_site_log_embed(row):
     return embed
 
 
-@tasks.loop(seconds=20)
+@tasks.loop(seconds=60)
 async def sync_site_logs_to_discord():
     sb = require_supabase()
     if not sb:
@@ -6050,13 +6054,15 @@ async def sync_site_logs_to_discord():
         return
 
     try:
-        result = (
-            sb.table("discord_logs")
-            .select("id, guild_id, channel_id, event_title, event_description, level, created_at")
-            .eq("guild_id", "site")
-            .order("created_at", desc=True)
-            .limit(50)
-            .execute()
+        result = await run_blocking_db(
+            lambda: (
+                sb.table("discord_logs")
+                .select("id, guild_id, channel_id, event_title, event_description, level, created_at")
+                .eq("guild_id", "site")
+                .order("created_at", desc=True)
+                .limit(50)
+                .execute()
+            )
         )
     except Exception as e:
         log_sync_error("site_logs_fetch", "[SITE LOG SYNC] Erro ao buscar logs do site:", e)
@@ -6088,7 +6094,7 @@ async def sync_site_logs_to_discord():
         save_json(STORAGE_FILE, storage)
 
 
-@tasks.loop(seconds=30)
+@tasks.loop(seconds=90)
 async def sync_recruitment_submissions_to_discord():
     sb = require_supabase()
     if not sb:
@@ -6107,19 +6113,25 @@ async def sync_recruitment_submissions_to_discord():
         return
 
     try:
-        result = (
-            sb.table("recruitment_submissions")
-            .select("id, respostas, status, created_at")
-            .eq("status", "novo")
-            .order("created_at", desc=True)
-            .limit(25)
-            .execute()
+        result = await run_blocking_db(
+            lambda: (
+                sb.table("recruitment_submissions")
+                .select("id, respostas, status, created_at")
+                .eq("status", "novo")
+                .order("created_at", desc=True)
+                .limit(25)
+                .execute()
+            )
         )
     except Exception as e:
         log_sync_error("recruitment_fetch", "[RECRUITMENT SYNC] Erro ao buscar candidaturas:", e)
         return
 
     rows = list(reversed(result.data or []))
+    try:
+        fields = await run_blocking_db(get_recruitment_form_field_labels)
+    except Exception:
+        fields = []
     notified_ids = {str(x) for x in (storage.get("notified_recruitment_submission_ids") or [])}
     changed = False
 
@@ -6133,7 +6145,7 @@ async def sync_recruitment_submissions_to_discord():
             continue
 
         try:
-            await channel.send(embed=build_recruitment_submission_embed(row))
+            await channel.send(embed=build_recruitment_submission_embed(row, fields=fields))
             notified_ids.add(key)
             changed = True
         except Exception as e:
@@ -6145,7 +6157,7 @@ async def sync_recruitment_submissions_to_discord():
         save_json(STORAGE_FILE, storage)
 
 
-@tasks.loop(seconds=30)
+@tasks.loop(seconds=90)
 async def sync_pending_site_link_requests_to_discord():
     sb = require_supabase()
     if not sb:
@@ -6160,13 +6172,15 @@ async def sync_pending_site_link_requests_to_discord():
         return
 
     try:
-        result = (
-            sb.table("member_card_link_requests")
-            .select("id, member_card_id, requested_by_profile_id, requested_by_discord_id, requested_by_name, request_source, status, requested_at")
-            .eq("status", "pending")
-            .order("requested_at", desc=True)
-            .limit(50)
-            .execute()
+        result = await run_blocking_db(
+            lambda: (
+                sb.table("member_card_link_requests")
+                .select("id, member_card_id, requested_by_profile_id, requested_by_discord_id, requested_by_name, request_source, status, requested_at")
+                .eq("status", "pending")
+                .order("requested_at", desc=True)
+                .limit(50)
+                .execute()
+            )
         )
     except Exception:
         return
@@ -6186,7 +6200,7 @@ async def sync_pending_site_link_requests_to_discord():
 
         member_id = _safe_int(row.get("member_card_id"))
         member_name = f"Membro #{member_id}" if member_id else "Membro"
-        card = get_member_card_by_id(member_id) if member_id else None
+        card = await run_blocking_db(lambda: get_member_card_by_id(member_id)) if member_id else None
         if card and card.get("nome"):
             member_name = str(card.get("nome"))
 
