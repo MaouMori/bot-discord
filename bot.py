@@ -2751,8 +2751,6 @@ class DanceBindView(discord.ui.View):
         super().__init__(timeout=300)
         self.add_item(DanceBindVersionButton("orleans", discord.ButtonStyle.primary))
         self.add_item(DanceBindVersionButton("rua2", discord.ButtonStyle.success))
-        for prefix in ("e3", "e", "e2", "e4", "e5"):
-            self.add_item(DanceBindPrefixButton(prefix, version="orleans"))
 
 
 @bot.command(name="painelbinddanca", aliases=["painelbind"])
@@ -2772,6 +2770,11 @@ async def painel_bind_danca(ctx):
             'Orleans: `bind keyboard "F6" "e3 dancar23 3234"`\n'
             'Rua2: `bind keyboard "F6" "e3 3234 dancar23"`'
         ),
+        inline=False
+    )
+    embed.add_field(
+        name="Como colocar os IDs",
+        value="No campo **IDs**, coloque separados por vírgula. Exemplo: `123,541,528`",
         inline=False
     )
     await ctx.send(embed=embed, view=DanceBindView())
