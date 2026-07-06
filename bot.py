@@ -2316,6 +2316,7 @@ async def on_ready():
     bot.add_view(RegisterView())
     bot.add_view(RoleRequestPanelView())
     bot.add_view(TicketPanelView())
+    bot.add_view(DanceBindView())
 
     for request in get_pending_requests().values():
         user_id = request.get("user_id")
@@ -2733,9 +2734,13 @@ class DanceBindPrefixButton(discord.ui.Button):
 
 class DanceBindVersionButton(discord.ui.Button):
     def __init__(self, version, style):
-        label = "Padrao" if normalize_bind_version(version) == "orleans" else "Rua2"
-        super().__init__(label=label, style=style)
         self.version = normalize_bind_version(version)
+        label = "Padrao" if self.version == "orleans" else "Rua2"
+        super().__init__(
+            label=label,
+            style=style,
+            custom_id=f"iconics_bind_dance_version:{self.version}",
+        )
 
     async def callback(self, interaction):
         await interaction.response.send_modal(DanceBindModal(prefix="e3", version=self.version))
@@ -2743,7 +2748,7 @@ class DanceBindVersionButton(discord.ui.Button):
 
 class DanceBindView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=300)
+        super().__init__(timeout=None)
         self.add_item(DanceBindVersionButton("orleans", discord.ButtonStyle.primary))
         self.add_item(DanceBindVersionButton("rua2", discord.ButtonStyle.success))
 
