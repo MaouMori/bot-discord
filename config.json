@@ -24,7 +24,23 @@
     1446473298396577878,
     1446473298383732800
   ],
-  "supabase_url": "https://kizpvgfzniuulahuqxkd.supabase.co",
+  "supabase_url": "https://jwcwozbbogjozhatsaga.supabase.co",
   "supabase_service_role_key": "COLE_SEU_SERVICE_ROLE_KEY_AQUI",
-  "supabase_admin_uuid": "COLE_UUID_DO_ADMIN_AQUI"
+  "supabase_admin_uuid": "COLE_UUID_DO_ADMIN_AQUI",
+  "iconics_form_url": "https://iconics-jade.vercel.app/recrutamento",
+  "role_request_channel_id": 1493045208366190682,
+  "ticket_category_id": 1493045851155726427,
+  "ticket_staff_role_id": 1446473298396577875,
+  "member_requestable_roles": {
+    "FotÃ³grafo": 1482585331969691649,
+    "Editor": 1453853788975665182,
+    "Social Media": 123456789012345678,
+    "Torcida": 987654321098765432
+  },
+  "supreme_role_id": 1446473298396577875,
+  "auto_delete": {
+    "enabled": true,
+    "delay_seconds": 30,
+    "commands": {}
+  }
 }
