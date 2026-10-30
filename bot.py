@@ -26,7 +26,7 @@ init_config_keys()
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
-from datetime import datetime
+from datetime import datetime, timezone
 import time
 
 
@@ -1053,7 +1053,7 @@ async def send_log_embed(guild, title, description, color=None):
                 "event_title": str(title or "")[:200],
                 "event_description": str(description or "")[:4000],
                 "level": "info",
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
             }
         ).execute()
     except Exception:
@@ -1075,11 +1075,14 @@ class RejectModal(discord.ui.Modal, title="Motivo da recusa"):
         self.user_id = user_id
 
     async def on_submit(self, interaction):
+        # Confirma o modal antes de persistir dados e enviar mensagens.
+        await interaction.response.defer()
+
         pending = get_pending_requests()
         data = pending.get(str(self.user_id))
 
         if not data:
-            await interaction.response.send_message("Já processado.", ephemeral=True)
+            await interaction.followup.send("Já processado.", ephemeral=True)
             return
 
         member = interaction.guild.get_member(self.user_id) if interaction.guild else None
@@ -1105,7 +1108,7 @@ class RejectModal(discord.ui.Modal, title="Motivo da recusa"):
                 discord.Color.red()
             )
 
-        await interaction.response.edit_message(
+        await interaction.edit_original_response(
             content=f"Recusado: {self.motivo}",
             embed=None,
             view=None
